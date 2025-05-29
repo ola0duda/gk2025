@@ -1,4 +1,4 @@
-#define _USE_MATH_DEFINES
+Ôªø#define _USE_MATH_DEFINES
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -10,95 +10,177 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/vector_angle.hpp>
+#include <random> // Do losowego obrotu kaktus√≥w
+#include <ctime>  // Do inicjalizacji generatora losowego
 
+// Upewnij siƒô, ≈ºe te pliki nag≈Ç√≥wkowe sƒÖ dostƒôpne w ≈õcie≈ºce kompilatora
 #include "shaderClass.h"
 #include "VAO.h"
 #include "VBO.h"
 #include "EBO.h"
 #include "Camera.h"
 #include "Texture.h"
+// === Dodanie nag≈Ç√≥wka nowej klasy Cactus ===
+#include "Cactus.h"
+// =========================================
 
-//funkcja pomocnicza do generowania wierzcho≥kÛw sfery UV - zwraca wektor danych wierzcho≥kÛw (pozycja, normalna, texCoord) i wektor indeksÛw
+//funkcja pomocnicza do generowania wierzchoÔøΩkÔøΩw sfery UV
+// Format wierzcho≈Çka sfery: Pos(3) + Normal(3) + TexCoord(2) = 8 floats
 void generateSphere(float radius, int sectorCount, int stackCount,
-	std::vector<GLfloat>& outSphereVertices, std::vector<GLuint>& outSphereIndices)
+    std::vector<GLfloat>& outSphereVertices, std::vector<GLuint>& outSphereIndices)
 {
-	outSphereVertices.clear();
-	outSphereIndices.clear();
+    outSphereVertices.clear();
+    outSphereIndices.clear();
 
-	float x, y, z, xy;                              //vertex position
-	float nx, ny, nz, lengthInv = 1.0f / radius;    //vertex normal
-	float s, t;                                     //vertex texCoord
+    float x, y, z, xy;                              //vertex position
+    float nx, ny, nz, lengthInv = 1.0f / radius;    //vertex normal
+    float s, t;                                     //vertex texCoord
 
-	float sectorStep = 2 * M_PI / sectorCount;
-	float stackStep = M_PI / stackCount;
-	float sectorAngle, stackAngle;
+    float sectorStep = 2 * M_PI / sectorCount;
+    float stackStep = M_PI / stackCount;
+    float sectorAngle, stackAngle;
 
-	for (int i = 0; i <= stackCount; ++i)
-	{
-		stackAngle = M_PI / 2 - i * stackStep;      //starting from pi/2 to -pi/2
-		xy = radius * cosf(stackAngle);             //r * cos(u)
-		z = radius * sinf(stackAngle);              //r * sin(u)
+    for (int i = 0; i <= stackCount; ++i)
+    {
+        stackAngle = M_PI / 2 - i * stackStep;      //starting from pi/2 to -pi/2
+        xy = radius * cosf(stackAngle);             //r * cos(u)
+        z = radius * sinf(stackAngle);              //r * sin(u)
 
-		//add (sectorCount+1) outSphereVertices per stack
-		//the first and last outSphereVertices have same position and normal, but different texCoords
-		for (int j = 0; j <= sectorCount; ++j)
-		{
-			sectorAngle = j * sectorStep;           //starting from 0 to 2pi
+        //add (sectorCount+1) outSphereVertices per stack
+        for (int j = 0; j <= sectorCount; ++j)
+        {
+            sectorAngle = j * sectorStep;           //starting from 0 to 2pi
 
-			//vertex position (x, y, z)
-			x = xy * cosf(sectorAngle);             //r * cos(u) * cos(v)
-			y = xy * sinf(sectorAngle);             //r * cos(u) * sin(v)
-			outSphereVertices.push_back(x);
-			outSphereVertices.push_back(y);
-			outSphereVertices.push_back(z);
+            //vertex position (x, y, z)
+            x = xy * cosf(sectorAngle);             //r * cos(u) * cos(v)
+            y = xy * sinf(sectorAngle);             //r * cos(u) * sin(v)
+            outSphereVertices.push_back(x);
+            outSphereVertices.push_back(y);
+            outSphereVertices.push_back(z);
 
-			//normalized vertex normal (nx, ny, nz)
-			nx = x * lengthInv;
-			ny = y * lengthInv;
-			nz = z * lengthInv;
-			outSphereVertices.push_back(nx);
-			outSphereVertices.push_back(ny);
-			outSphereVertices.push_back(nz);
+            //normalized vertex normal (nx, ny, nz)
+            nx = x * lengthInv;
+            ny = y * lengthInv;
+            nz = z * lengthInv;
+            outSphereVertices.push_back(nx);
+            outSphereVertices.push_back(ny);
+            outSphereVertices.push_back(nz);
 
-			//vertex tex coord (s, t) range between [0, 1]
-			s = (float)j / sectorCount;
-			t = (float)i / stackCount;
-			outSphereVertices.push_back(s);
-			outSphereVertices.push_back(t);
-		}
-	}
+            //vertex tex coord (s, t) range between [0, 1]
+            s = (float)j / sectorCount;
+            t = (float)i / stackCount;
+            outSphereVertices.push_back(s);
+            outSphereVertices.push_back(t);
+        }
+    }
 
-	//generate CCW index list of sphere triangles
-	int k1, k2;
-	for (int i = 0; i < stackCount; ++i)
-	{
-		k1 = i * (sectorCount + 1);     //beginning of current stack
-		k2 = k1 + sectorCount + 1;      //beginning of next stack
+    //generate CCW index list of sphere triangles
+    int k1, k2;
+    for (int i = 0; i < stackCount; ++i)
+    {
+        k1 = i * (sectorCount + 1);     //beginning of current stack
+        k2 = k1 + sectorCount + 1;      //beginning of next stack
 
-		for (int j = 0; j < sectorCount; ++j, ++k1, ++k2)
-		{
-			//2 triangles per sector excluding first and last stacks
-			//k1 => k2 => k1+1
-			if (i != 0)
-			{
-				outSphereIndices.push_back(k1);
-				outSphereIndices.push_back(k2);
-				outSphereIndices.push_back(k1 + 1);
-			}
+        for (int j = 0; j < sectorCount; ++j, ++k1, ++k2)
+        {
+            //2 triangles per sector excluding first and last stacks
+            //k1 => k2 => k1+1
+            if (i != 0)
+            {
+                outSphereIndices.push_back(k1);
+                outSphereIndices.push_back(k2);
+                outSphereIndices.push_back(k1 + 1);
+            }
 
-			//k1+1 => k2 => k2+1
-			if (i != (stackCount - 1))
-			{
-				outSphereIndices.push_back(k1 + 1);
-				outSphereIndices.push_back(k2);
-				outSphereIndices.push_back(k2 + 1);
-			}
-		}
-	}
+            //k1+1 => k2 => k2+1
+            if (i != (stackCount - 1))
+            {
+                outSphereIndices.push_back(k1 + 1);
+                outSphereIndices.push_back(k2);
+                outSphereIndices.push_back(k2 + 1);
+            }
+        }
+    }
+     std::cout << "Generated Sphere: " << outSphereVertices.size() / 8 << " vertices, " << outSphereIndices.size() / 3 << " triangles." << std::endl;
 }
 
-//globalna zmienna trybu oúwietlenia
-static int currentLightingMode = 3; //domyúlnie pe≥ne oúwietlenie
+// Funkcja pomocnicza do obliczania wysoko≈õci dla punktu (x, z)
+float getHeight(float x, float z, float amplitude, float frequency) {
+	float h = 0.0f;
+	h += amplitude * sin((x + z * 0.5f) * frequency);
+	h += (amplitude * 0.4f) * cos((x - z * 0.8f) * frequency * 1.5f);
+	h += (amplitude * 0.15f) * sin((x * 2.5f + z * 1.5f) * frequency * 2.0f);
+	h += (amplitude * 0.08f) * cos((z * 3.0f - x * 0.7f) * frequency * 3.0f);
+	float total_coeffs = 1.0f + 0.4f + 0.15f + 0.08f;
+	h /= total_coeffs;
+	return h;
+}
+
+// Funkcja pomocnicza do obliczania normalnej numerycznie
+glm::vec3 calculateNormal(float x, float z, float epsilon, float amplitude, float frequency) {
+	float y_center = getHeight(x, z, amplitude, frequency);
+	float y_dx = getHeight(x + epsilon, z, amplitude, frequency);
+	float y_dz = getHeight(x, z + epsilon, amplitude, frequency);
+
+	glm::vec3 tangentX = glm::vec3(epsilon, y_dx - y_center, 0.0f);
+	glm::vec3 tangentZ = glm::vec3(0.0f, y_dz - y_center, epsilon);
+
+	glm::vec3 normal = glm::normalize(glm::cross(tangentZ, tangentX));
+	return normal;
+}
+
+// Funkcja, kt√≥ra generuje dane dla pofa≈Çdowanej siatki
+void generateWavyGround(int segmentsX, int segmentsZ, float totalWidth, float totalDepth,
+	float waveAmplitude, float waveFrequency, float textureTiling,
+	std::vector<GLfloat>& outGroundVertices, std::vector<GLuint>& outGroundIndices)
+{
+	outGroundVertices.clear();
+	outGroundIndices.clear();
+
+	float segmentWidth = totalWidth / segmentsX;
+	float segmentDepth = totalDepth / segmentsZ;
+	float epsilon = 0.005f;
+
+	for (int i = 0; i <= segmentsZ; ++i)
+	{
+		for (int j = 0; j <= segmentsX; ++j)
+		{
+			float x = (float)j * segmentWidth - totalWidth * 0.5f;
+			float z = (float)i * segmentDepth - totalDepth * 0.5f;
+			float y = getHeight(x, z, waveAmplitude, waveFrequency);
+			float r = 1.0f, g = 1.0f, b = 1.0f;
+			float s = (float)j / segmentsX * textureTiling;
+			float t = (float)i / segmentsZ * textureTiling;
+			glm::vec3 normal = calculateNormal(x, z, epsilon, waveAmplitude, waveFrequency);
+
+			// Format: pos(3) + color(3) + tex(2) + normal(3) = 11 floats
+			outGroundVertices.push_back(x); outGroundVertices.push_back(y); outGroundVertices.push_back(z);
+			outGroundVertices.push_back(r); outGroundVertices.push_back(g); outGroundVertices.push_back(b); // Dummy color, not used by shader
+			outGroundVertices.push_back(s); outGroundVertices.push_back(t);
+			outGroundVertices.push_back(normal.x); outGroundVertices.push_back(normal.y); outGroundVertices.push_back(normal.z);
+		}
+	}
+
+	int verticesPerSegmentRow = segmentsX + 1;
+	for (int i = 0; i < segmentsZ; ++i)
+	{
+		for (int j = 0; j < segmentsX; ++j)
+		{
+			int vertexIndex_BL = i * verticesPerSegmentRow + j;
+			int vertexIndex_BR = i * verticesPerSegmentRow + j + 1;
+			int vertexIndex_TL = (i + 1) * verticesPerSegmentRow + j;
+			int vertexIndex_TR = (i + 1) * verticesPerSegmentRow + j + 1;
+
+			outGroundIndices.push_back(vertexIndex_BL); outGroundIndices.push_back(vertexIndex_BR); outGroundIndices.push_back(vertexIndex_TR);
+			outGroundIndices.push_back(vertexIndex_BL); outGroundIndices.push_back(vertexIndex_TR); outGroundIndices.push_back(vertexIndex_TL);
+		}
+	}
+	std::cout << "Generated Wavy Ground: " << outGroundVertices.size() / 11 << " vertices, " << outGroundIndices.size() / 3 << " triangles." << std::endl;
+}
+
+
+//globalna zmienna trybu oÔøΩwietlenia
+static int currentLightingMode = 3; //domyÔøΩlnie peÔøΩne oÔøΩwietlenie
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -107,41 +189,42 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		if (key == GLFW_KEY_1) { currentLightingMode = 0; std::cout << "Tryb: Ambient" << std::endl; }
 		else if (key == GLFW_KEY_2) { currentLightingMode = 1; std::cout << "Tryb: Diffuse" << std::endl; }
 		else if (key == GLFW_KEY_3) { currentLightingMode = 2; std::cout << "Tryb: Specular (+Ambient)" << std::endl; }
-		else if (key == GLFW_KEY_4) { currentLightingMode = 3; std::cout << "Tryb: Pe≥ne (ADS)" << std::endl; }
+		else if (key == GLFW_KEY_4) { currentLightingMode = 3; std::cout << "Tryb: PeÔøΩne (ADS)" << std::endl; }
 		else if (key == GLFW_KEY_L)
 		{
 			currentLightingMode = (currentLightingMode + 1) % 4;
 			if (currentLightingMode == 0) std::cout << "Tryb: Ambient" << std::endl;
 			else if (currentLightingMode == 1) std::cout << "Tryb: Diffuse" << std::endl;
 			else if (currentLightingMode == 2) std::cout << "Tryb: Specular (+Ambient)" << std::endl;
-			else if (currentLightingMode == 3) std::cout << "Tryb: Pe≥ne (ADS)" << std::endl;
+			else if (currentLightingMode == 3) std::cout << "Tryb: PeÔøΩne (ADS)" << std::endl;
 		}
 	}
 }
 
-//dane wierzcho≥kÛw (wspolrzedne, kolory, tekstury, normalne)
+//dane wierzchoÔøΩkÔøΩw (wspolrzedne, kolory, tekstury, normalne) dla piramidy (sta≈Çe)
 GLfloat pyramidVertices[] =
-{ 
-	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, -1.0f, 0.0f, //dol
-	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 5.0f,   0.0f, -1.0f, 0.0f,
-	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 5.0f,   0.0f, -1.0f, 0.0f,
-	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, -1.0f, 0.0f,
+{
+	// Pozycje           // Kolory         // TexCoords   // Normalne
+	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, -1.0f, 0.0f, // dol 0
+	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 5.0f,   0.0f, -1.0f, 0.0f, // dol 1
+	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 5.0f,   0.0f, -1.0f, 0.0f, // dol 2
+	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, -1.0f, 0.0f, // dol 3
 
-	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,  -0.8f, 0.5f, 0.0f, //lewa
-	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,  -0.8f, 0.5f, 0.0f,
-	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,  -0.8f, 0.5f, 0.0f,
+	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,  -0.8f, 0.5f, 0.0f, // lewa 4
+	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,  -0.8f, 0.5f, 0.0f, // lewa 5
+	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,  -0.8f, 0.5f, 0.0f, // lewa 6
 
-	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, 0.5f,-0.8f, //tyl
-	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, 0.5f,-0.8f,
-	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.0f, 0.5f,-0.8f,
+	-0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, 0.5f,-0.8f, // tyl 7
+	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, 0.5f,-0.8f, // tyl 8
+	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.0f, 0.5f,-0.8f, // tyl 9
 
-	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.8f, 0.5f, 0.0f, //prawa
-	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.8f, 0.5f, 0.0f,
-	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.8f, 0.5f, 0.0f,
+	 0.5f, 0.0f, -0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.8f, 0.5f, 0.0f, // prawa 10
+	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.8f, 0.5f, 0.0f, // prawa 11
+	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.8f, 0.5f, 0.0f, // prawa 12
 
-	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, 0.5f, 0.8f, //przod
-	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, 0.5f, 0.8f,
-	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.0f, 0.5f, 0.8f
+	 0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  5.0f, 0.0f,   0.0f, 0.5f, 0.8f, // przod 13
+	-0.5f, 0.0f,  0.5f,     0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, 0.5f, 0.8f, // przod 14
+	 0.0f, 0.8f,  0.0f,     0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.0f, 0.5f, 0.8f  // przod 15
 };
 
 GLuint pyramidIndices[] =
@@ -151,19 +234,6 @@ GLuint pyramidIndices[] =
 	7, 9, 8,          //tyl
 	10, 12, 11,       //prawa
 	13, 15, 14        //przod
-};
-
-//wierzcho≥ki i indeksy dla p≥aszczyzny pod≥oøa
-GLfloat groundVertices[] = {
-	//wspolrzedne, kolory (tu nie uzywane bo tekstura), tekstura, normalne (zawsze w gore)
-	 50.0f, 0.0f,  50.0f,  1.0f, 1.0f, 1.0f,  50.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-	 50.0f, 0.0f, -50.0f,  1.0f, 1.0f, 1.0f,  50.0f, 50.0f,  0.0f, 1.0f, 0.0f,
-	-50.0f, 0.0f, -50.0f,  1.0f, 1.0f, 1.0f,   0.0f, 50.0f,  0.0f, 1.0f, 0.0f,
-	-50.0f, 0.0f,  50.0f,  1.0f, 1.0f, 1.0f,   0.0f,  0.0f,  0.0f, 1.0f, 0.0f
-};
-GLuint groundIndices[] = {
-	0, 1, 3, //pierwszy trojkat
-	1, 2, 3  //drugi trojkat
 };
 
 const unsigned int SCR_WIDTH = 800;
@@ -176,199 +246,358 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Projekt OpenGL", NULL, NULL);
-	if (window == NULL) { std::cout << "Nie uda≥o siÍ utworzyÊ okna GLFW" << std::endl; glfwTerminate(); return -1; }
+	if (window == NULL) { std::cout << "Nie udaÔøΩo siÔøΩ utworzyÔøΩ okna GLFW" << std::endl; glfwTerminate(); return -1; }
 	glfwMakeContextCurrent(window);
 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-		std::cout << "Nie uda≥o siÍ zainicjalizowaÊ GLAD" << std::endl; return -1;
+		std::cout << "Nie udaÔøΩo siÔøΩ zainicjalizowaÔøΩ GLAD" << std::endl; return -1;
 	}
 
 	glEnable(GL_DEPTH_TEST);
 	glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 	glfwSetKeyCallback(window, key_callback);
 
-	Camera camera(SCR_WIDTH, SCR_HEIGHT, glm::vec3(0.0f, 1.0f, 8.0f)); //lekko podniesiona kamera
+	// Zainicjalizuj generator liczb losowych dla losowych obrot√≥w kaktus√≥w
+	std::srand(static_cast<unsigned int>(std::time(0)));
+	std::mt19937 rng(static_cast<unsigned int>(std::time(0)));
+	std::uniform_real_distribution<float> dist(0.0f, 360.0f); // Rozk≈Çad na 0-360 stopni
 
-	Shader pyramidShaderProgram("default.vert", "default.frag");
-	if (pyramidShaderProgram.ID == 0) { glfwTerminate(); return -1; } //sprawdzenie, czy shader sie zaladowal
 
-	Shader sunShaderProgram("sun.vert", "sun.frag"); //shader dla slonca
-	if (sunShaderProgram.ID == 0) { pyramidShaderProgram.Delete(); glfwTerminate(); return -1; }
+	// === DEKLARACJE I INICJALIZACJA WSZYSTKICH OBIEKT√ìW PRZED PÔøΩTLƒÑ G≈Å√ìWNƒÑ ===
 
-	//zaladowanie tekstury
-	//jednostka teksturujπca 0, format GL_RGBA, typ GL_UNSIGNED_BYTE
+	Camera camera(SCR_WIDTH, SCR_HEIGHT, glm::vec3(0.0f, 2.0f, 10.0f)); // lekko podniesiona i dalej kamera
+
+	Shader pyramidShaderProgram("default.vert", "default.frag"); // Uzywamy tego samego shadera dla podlogi, piramid i kaktus√≥w
+	if (pyramidShaderProgram.ID == 0) { std::cerr << "Shader 'default' nie zaÔøΩadowany poprawnie." << std::endl; glfwTerminate(); return -1; }
+
+	Shader sunShaderProgram("sun.vert", "sun.frag");
+	if (sunShaderProgram.ID == 0) { std::cerr << "Shader 'sun' nie zaÔøΩadowany poprawnie." << std::endl; pyramidShaderProgram.Delete(); glfwTerminate(); return -1; }
+
 	Texture pyramidTexture("sand_texture.png", GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE);
-	if (pyramidTexture.ID == 0) { //sprawdzenie, czy tekstura sie zaladowala
-		pyramidShaderProgram.Delete();
-		sunShaderProgram.Delete();
-		glfwTerminate();
-		return -1;
+	if (pyramidTexture.ID == 0) {
+		std::cerr << "Tekstura 'sand_texture.png' nie zaÔøΩadowana poprawnie." << std::endl;
+		pyramidShaderProgram.Delete(); sunShaderProgram.Delete();
+		glfwTerminate(); return -1;
 	}
-	//ustawienie uniformu samplera tex0 na jednostkÍ teksturujπcπ 0
 	pyramidTexture.texUnit(pyramidShaderProgram, "tex0");
 
-	Texture sunTexture("sun_texture.png", GL_TEXTURE_2D, 1, GL_RGBA, GL_UNSIGNED_BYTE);		//jednostka 1 dla slonca
+	Texture sunTexture("sun_texture.png", GL_TEXTURE_2D, 1, GL_RGBA, GL_UNSIGNED_BYTE);
 	if (sunTexture.ID == 0) {
-		pyramidShaderProgram.Delete();
-		sunShaderProgram.Delete();
-		pyramidTexture.Delete();
-		glfwTerminate();
-		return -1;
+		std::cerr << "Tekstura 'sun_texture.png' nie zaÔøΩadowana poprawnie." << std::endl;
+		pyramidShaderProgram.Delete(); sunShaderProgram.Delete(); pyramidTexture.Delete();
+		glfwTerminate(); return -1;
 	}
-	sunTexture.texUnit(sunShaderProgram, "sunTexture"); //sunTexture dla shadera s≥oÒca
+	sunTexture.texUnit(sunShaderProgram, "sunTexture");
 
-	//tekstura dla podloza z piasku
 	Texture groundSandTexture("groundSand_texture.png", GL_TEXTURE_2D, 2, GL_RGBA, GL_UNSIGNED_BYTE);
 	if (groundSandTexture.ID == 0) {
+		std::cerr << "Tekstura 'groundSand_texture.png' nie zaÔøΩadowana poprawnie." << std::endl;
 		pyramidShaderProgram.Delete(); sunShaderProgram.Delete(); pyramidTexture.Delete(); sunTexture.Delete();
-		glfwTerminate();
-		return -1;
+		glfwTerminate(); return -1;
 	}
 
-	//vao, vbo i ebo dla piramidy
+	// === Dodanie tekstury dla kaktus√≥w (jednostka 3) - U≈ºywamy JPG ===
+	// Pamiƒôtaj, ≈ºe biblioteka stb_image musi byƒá skonfigurowana do ≈Çadowania JPG!
+	Texture cactusTexture("cactus_texture.jpg", GL_TEXTURE_2D, 3, GL_RGBA, GL_UNSIGNED_BYTE);
+	if (cactusTexture.ID == 0) {
+		std::cerr << "Tekstura 'cactus_texture.jpg' nie zaÔøΩadowana poprawnie." << std::endl;
+		pyramidShaderProgram.Delete(); sunShaderProgram.Delete(); pyramidTexture.Delete(); sunTexture.Delete(); groundSandTexture.Delete();
+		glfwTerminate(); return -1;
+	}
+	// TexUnit dla kaktusa bedzie ustawiane w pÔøΩtli przed rysowaniem kaktus√≥w
+
+
+	// === Generowanie Danych dla Pofa≈Çdowanej Pod≈Çogi ===
+	std::vector<GLfloat> groundVerticesVec;
+	std::vector<GLuint> groundIndicesVec;
+
+	// Parametry generowania pod≈Çogi
+	int segmentsX = 60;
+	int segmentsZ = 60;
+	float totalGroundWidth = 6.0f; // Mniejsza powierzchnia
+	float totalGroundDepth = 6.0f;
+	float waveAmplitude = 0.25f;
+	float waveFrequency = 0.8f;
+	float textureTiling = 8.0f;
+
+	generateWavyGround(segmentsX, segmentsZ, totalGroundWidth, totalGroundDepth,
+		waveAmplitude, waveFrequency, textureTiling,
+		groundVerticesVec, groundIndicesVec);
+
+	// Przechowujemy te parametry, ≈ºeby u≈ºyƒá ich do obliczenia wysoko≈õci kaktus√≥w
+	float groundGenWaveAmplitude = waveAmplitude;
+	float groundGenWaveFrequency = waveFrequency;
+
+
+	// === Konfiguracja VAO, VBO, EBO dla Pofa≈Çdowanej Pod≈Çogi ===
+	VAO groundVAO;
+	groundVAO.Bind();
+	VBO groundVBO(groundVerticesVec.data(), groundVerticesVec.size() * sizeof(GLfloat));
+	EBO groundEBO(groundIndicesVec.data(), groundIndicesVec.size() * sizeof(GLuint));
+	// Linkowanie atrybut√≥w (format: pos(3) color(3) tex(2) normal(3) = 11 floats)
+	groundVAO.LinkAttrib(groundVBO, 0, 3, GL_FLOAT, 11 * sizeof(float), (void*)0); // aPos
+	groundVAO.LinkAttrib(groundVBO, 1, 3, GL_FLOAT, 11 * sizeof(float), (void*)(3 * sizeof(float))); // aColor (dummy)
+	groundVAO.LinkAttrib(groundVBO, 2, 2, GL_FLOAT, 11 * sizeof(float), (void*)(6 * sizeof(float))); // aTex
+	groundVAO.LinkAttrib(groundVBO, 3, 3, GL_FLOAT, 11 * sizeof(float), (void*)(8 * sizeof(float))); // aNormal
+	// groundVAO.Unbind(); // Usuniƒôto Unbind
+
+
+	// === Konfiguracja VAO, VBO, EBO dla piramidy (oryginalna) ===
 	VAO pyramidVAO;
 	pyramidVAO.Bind();
 	VBO pyramidVBO(pyramidVertices, sizeof(pyramidVertices));
 	EBO pyramidEBO(pyramidIndices, sizeof(pyramidIndices));
-	//atrybuty: 0-pozycja, 1-kolor, 2-wsp. tekstury, 3-normalne
-	//stride dla piramidy: 3(pos)+3(color)+2(tex)+3(normal)=11 floats
-	pyramidVAO.LinkAttrib(pyramidVBO, 0, 3, GL_FLOAT, 11 * sizeof(float), (void*)0);
-	pyramidVAO.LinkAttrib(pyramidVBO, 1, 3, GL_FLOAT, 11 * sizeof(float), (void*)(3 * sizeof(float)));
-	pyramidVAO.LinkAttrib(pyramidVBO, 2, 2, GL_FLOAT, 11 * sizeof(float), (void*)(6 * sizeof(float)));
-	pyramidVAO.LinkAttrib(pyramidVBO, 3, 3, GL_FLOAT, 11 * sizeof(float), (void*)(8 * sizeof(float)));
-	pyramidVAO.Unbind(); // VBO i EBO sπ odpinane przez VAO/EBO
+	//atrybuty: 0-pozycja, 1-kolor, 2-wsp. tekstury, 3-normalne (stride 11 floats)
+	pyramidVAO.LinkAttrib(pyramidVBO, 0, 3, GL_FLOAT, 11 * sizeof(float), (void*)0); // aPos
+	pyramidVAO.LinkAttrib(pyramidVBO, 1, 3, GL_FLOAT, 11 * sizeof(float), (void*)(3 * sizeof(float))); // aColor
+	pyramidVAO.LinkAttrib(pyramidVBO, 2, 2, GL_FLOAT, 11 * sizeof(float), (void*)(6 * sizeof(float))); // aTex
+	pyramidVAO.LinkAttrib(pyramidVBO, 3, 3, GL_FLOAT, 11 * sizeof(float), (void*)(8 * sizeof(float))); // aNormal
+	// pyramidVAO.Unbind(); // Usuniƒôto Unbind
 
-	//vao, vbo, ebo dla podloza
-	VAO groundVAO;
-	VBO groundVBO(groundVertices, sizeof(groundVertices));
-	EBO groundEBO(groundIndices, sizeof(groundIndices));
-	groundVAO.Bind();
-	//stride dla podloza taki sam jak dla piramidy - 11 floats
-	groundVAO.LinkAttrib(groundVBO, 0, 3, GL_FLOAT, 11 * sizeof(float), (void*)0);
-	groundVAO.LinkAttrib(groundVBO, 1, 3, GL_FLOAT, 11 * sizeof(float), (void*)(3 * sizeof(float)));
-	groundVAO.LinkAttrib(groundVBO, 2, 2, GL_FLOAT, 11 * sizeof(float), (void*)(6 * sizeof(float)));
-	groundVAO.LinkAttrib(groundVBO, 3, 3, GL_FLOAT, 11 * sizeof(float), (void*)(8 * sizeof(float)));
-	groundVAO.Unbind();
 
-	//generowanie danych dla sfery (s≥oÒca)
+	// === Konfiguracja VAO, VBO, EBO dla sfery (wsp√≥≈Çdzielona geometria) ===
+	// U≈ºywana do budowy KAKTUS√ìW ORAZ S≈ÅO≈ÉCA
 	std::vector<GLfloat> sphereVertices;
 	std::vector<GLuint> sphereIndices;
-	float sunRadius = 0.1f; //rozmiar s≥oÒca
-	generateSphere(sunRadius, 36, 18, sphereVertices, sphereIndices); //36 sektorÛw, 18 stosÛw
+	float baseSphereRadius = 0.5f; // Promie≈Ñ bazowej sfery (przed skalowaniem)
+	generateSphere(baseSphereRadius, 36, 18, sphereVertices, sphereIndices); // Generujemy raz dane dla sfery
+    // Przechowujemy liczbƒô indeks√≥w sfery do rysowania
+    GLsizei sphereIndexCount = sphereIndices.size();
 
+
+	// === Konfiguracja VAO/VBO/EBO dla sfery U≈ªYWANEJ PRZEZ DEFAULT.VERT (KAKTUSY) ===
+	// Shader default.vert oczekuje atrybut√≥w w layoutach 0 (pos), 1 (color), 2 (tex), 3 (normal).
+	// Dane sfery majƒÖ format pos (3) + normal (3) + tex (2) = 8 floats na wierzcho≈Çek.
+	// Musimy zmapowaƒá dane do layout√≥w oczekiwanych przez shader.
+	VAO cactusSphereVAO;
+	cactusSphereVAO.Bind();
+	// VBO dla danych sfery (wsp√≥≈Çdzielone z sunVAO)
+	VBO sphereVBO(sphereVertices.data(), sphereVertices.size() * sizeof(GLfloat)); // Zmieniona nazwa na sphereVBO
+	// EBO dla danych sfery (wsp√≥≈Çdzielone z sunVAO)
+	EBO sphereEBO(sphereIndices.data(), sphereIndices.size() * sizeof(GLuint)); // Zmieniona nazwa na sphereEBO
+	// Linkowanie atrybut√≥w DLA DEFAULT.VERT (stride 8 floats)
+	// Layout 0: Pozycja (3 floats, offset 0)
+	cactusSphereVAO.LinkAttrib(sphereVBO, 0, 3, GL_FLOAT, 8 * sizeof(float), (void*)0); // aPos
+	// Layout 1: Kolor (3 floats, offset 3*sizeof(float) - wskazujemy na dane normalnych)
+	// Shader default.vert nie u≈ºywa aColor, ale ten link musi istnieƒá w VAO zgodnie z shaderem.
+	cactusSphereVAO.LinkAttrib(sphereVBO, 1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float))); // aColor (dummy, points to normals)
+	// Layout 2: Wsp√≥≈Çrzƒôdne tekstury (2 floats, offset 6*sizeof(float))
+	cactusSphereVAO.LinkAttrib(sphereVBO, 2, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float))); // aTex
+	// Layout 3: Normalne (3 floats, offset 3*sizeof(float) - wskazujemy na dane normalnych)
+	cactusSphereVAO.LinkAttrib(sphereVBO, 3, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float))); // aNormal
+	// cactusSphereVAO.Unbind(); // Usuniƒôto Unbind
+
+
+	// === Konfiguracja VAO, VBO, EBO dla sÔøΩoÔøΩca U≈ªYWANEJ PRZEZ SUN.VERT (S≈ÅO≈ÉCE) ===
+	// Shader sun.vert oczekuje atrybut√≥w w layoutach 0 (pos), 1 (normal), 2 (texCoord).
+	// To odpowiada naturalnemu uk≈Çadowi danych sfery (pos, normal, tex).
 	VAO sunVAO;
 	sunVAO.Bind();
-	VBO sunVBO(&sphereVertices[0], sphereVertices.size() * sizeof(GLfloat));
-	EBO sunEBO(&sphereIndices[0], sphereIndices.size() * sizeof(GLuint));
-	//stride dla sfery: 3 (pos) + 3 (normal) + 2 (texCoord) = 8 floats
-	//layout: 0=pos, 1=normal, 2=texCoord (zgodnie z sun.vert)
-	sunVAO.LinkAttrib(sunVBO, 0, 3, GL_FLOAT, 8 * sizeof(float), (void*)0);
-	sunVAO.LinkAttrib(sunVBO, 1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float))); //normalne
-	sunVAO.LinkAttrib(sunVBO, 2, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float))); //texCoords
-	sunVAO.Unbind();
+	// VBO dla danych sfery (wsp√≥≈Çdzielone z cactusSphereVAO)
+    // U≈ºywamy tego samego obiektu VBO, ale bindowany do innego VAO
+	sphereVBO.Bind(); // Bindujemy VBO zawierajƒÖce dane sfery
+    // EBO dla danych sfery (wsp√≥≈Çdzielone z cactusSphereVAO)
+    // U≈ºywamy tego samego obiektu EBO
+    sphereEBO.Bind(); // Bindujemy EBO zawierajƒÖce indeksy sfery
 
-	//pozycje piramid
+	// Linkowanie atrybut√≥w DLA SUN.VERT (stride 8 floats)
+	// Layout 0: Pozycja (3 floats, offset 0)
+	sunVAO.LinkAttrib(sphereVBO, 0, 3, GL_FLOAT, 8 * sizeof(float), (void*)0); // aPos
+	// Layout 1: Normalne (3 floats, offset 3*sizeof(float))
+	sunVAO.LinkAttrib(sphereVBO, 1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float))); // aNormal
+	// Layout 2: Wsp√≥≈Çrzƒôdne tekstury (2 floats, offset 6*sizeof(float))
+	sunVAO.LinkAttrib(sphereVBO, 2, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float))); // aTexCoords
+	// sunVAO.Unbind(); // Usuniƒôto Unbind
+
+
+	//pozycje piramid (oryginalne)
 	glm::vec3 pyramidPositions[] = {
 		glm::vec3(0.9f, 0.0f,  -0.3f), //piramida centralna
 		glm::vec3(-0.7f, 0.0f, 0.0f), //piramida po lewej
 		glm::vec3(0.2f, 0.0f, -1.5f), //piramida po prawej
-		glm::vec3(-1.5f, 0.0f, -1.0f)  //piramida daleko z ty≥u
+		glm::vec3(-1.5f, 0.0f, -1.0f)  //piramida daleko z tyÔøΩu
 	};
 
-	//skale dla piramid - piramidy bedace bardziej z tylu sa mniejsze
+	//skale dla piramid (oryginalne)
 	float pyramidScales[] = {
 		1.1f,    //skala piramidy centralnej
 		1.0f,    //skala piramidy po lewej
 		0.85f,    //skala piramidy po prawej
-		0.7f     //skala piramidy daleko z ty≥u
+		0.7f     //skala piramidy daleko z tyÔøΩu
 	};
 
-	//kπty obrotu wokÛ≥ osi Y dla piramid
+	//kÔøΩty obrotu wokÔøΩ osi Y dla piramid (oryginalne)
 	float pyramidYRotations[] = {
-		-20.0f,          //piramida centralna bez dodatkowego obrotu
-		25.0f,         //piramida po lewej obrÛcona o 45 stopni
-		5.0f,        //piramida po prawej obrÛcona o -30 stopni
-		45.0f          //piramida z ty≥u
+		-20.0f,          //piramida centralna
+		25.0f,         //piramida po lewej
+		5.0f,        //piramida po prawej
+		45.0f          //piramida z tyÔøΩu
 	};
 
 	int numPyramids = sizeof(pyramidPositions) / sizeof(glm::vec3);
 
-	//parametry dla ruchu wschÛd-zachÛd
-	float dayNightCycleSpeed = 0.05f; //jak szybko ma przebiegaÊ cykl dnia i nocy
-	float sunPathRadius = 5.0f;    //jak daleko od centrum sceny (na osi X lub Z) s≥oÒce "wschodzi/zachodzi"
-	float sunMaxHeight = 3.5f;     //maksymalna wysokoúÊ s≥oÒca w zenicie
-	float sunMinHeight = -0.5f;    //minimalna wysokoúÊ (moøe byÊ lekko poniøej horyzontu dla pe≥nego zachodu)
-	//s≥oÒce porusza siÍ w p≥aszczyünie X-Y, Z pozostanie sta≥e (lub odwrotnie)
-	float sunPathDepth = -3.0f;    //sta≥a g≥ÍbokoúÊ Z dla úcieøki s≥oÒca (lub X, jeúli ruch jest w Z-Y)
+
+	// === Definicja struktury kaktusa (przyk≈Çad prostego kaktusa z 1 czƒô≈õciƒÖ) ===
+    // U≈ºywamy teraz skali dla SFERY
+	const std::vector<CactusPart> standardCactusPartsData = {
+		// Pojedynczy pie≈Ñ - ma≈Ça sferka rozciƒÖgniƒôta w pionie
+		// relativePosition umieszcza ≈õrodek sfery PO skalowaniu
+		// Aby dolna krawƒôd≈∫ dotyka≈Ça Y=0, ≈õrodek musi byƒá przesuniƒôty o +0.5*scale.y w g√≥rƒô.
+        // Skala (grubo≈õƒá X, wysoko≈õƒá Y, grubo≈õƒá Z)
+		{ glm::vec3(0.0f, 0.5f * 0.5f, 0.0f), glm::vec3(0.15f, 0.5f, 0.15f), glm::vec3(0.0f, 1.0f, 0.0f), 0.0f } // skala 0.15x0.5x0.15
+	};
+
+	// === Pozycje poszczeg√≥lnych instancji kaktus√≥w (Dodano 2 nowe) ===
+	// Wybrane pozycje w obszarze mniejszej pod≈Çogi
+	glm::vec3 cactusPositionsXZ[] = {
+		glm::vec3(1.5f, 0.0f, 0.5f),  // obok piramidy centralnej/prawej
+		glm::vec3(-1.0f, 0.0f, 1.0f), // obok piramidy lewej
+		glm::vec3(0.0f, 0.0f, -2.0f), // obok piramidy prawej/dalekiej
+		// Dodane nowe kaktusy
+		glm::vec3(-2.0f, 0.0f, -1.5f), // Nowy kaktus 1 (lewo, ty≈Ç)
+		glm::vec3(2.0f, 0.0f, 1.5f)   // Nowy kaktus 2 (prawo, prz√≥d)
+	};
+	int numCacti = sizeof(cactusPositionsXZ) / sizeof(glm::vec3);
+
+	// === Tworzenie instancji kaktus√≥w z poprawnƒÖ wysoko≈õciƒÖ Y i losowym obrotem ===
+	std::vector<Cactus> cacti;
+	for (int i = 0; i < numCacti; ++i) {
+		// Pobierz pozycjƒô X i Z z tablicy
+		glm::vec3 posXZ = cactusPositionsXZ[i];
+		// Oblicz wysoko≈õƒá pod≈Çogi na tej pozycji (X, Z) u≈ºywajƒÖc funkcji getHeight
+		// U≈ºyj tych samych parametr√≥w amplitudy i czƒôstotliwo≈õci, co do generowania pod≈Çogi!
+		float groundHeight = getHeight(posXZ.x, posXZ.z, groundGenWaveAmplitude, groundGenWaveFrequency);
+		// Wylosuj obr√≥t wok√≥≈Ç osi Y dla tej instancji
+		float randomYRotation = dist(rng); // dist(rng) daje float z zakresu [0, 360)
+		// Utw√≥rz instancjƒô kaktusa z poprawnƒÖ pozycjƒÖ (X, wysoko≈õƒá_pod≈Çogi, Z) i losowym obrotem Y
+		cacti.push_back(Cactus(glm::vec3(posXZ.x, groundHeight, posXZ.z), randomYRotation));
+	}
 
 
+	// parametry dla ruchu wschÔøΩd-zachÔøΩd (oryginalne)
+	float dayNightCycleSpeed = 0.05f;
+	float sunPathRadius = 5.0f;
+	float sunMaxHeight = 3.5f;
+	float sunMinHeight = -0.5f;
+	float sunPathDepth = -3.0f;
+
+    // === Zmniejszona wielko≈õƒá s≈Ço≈Ñca ===
+	float sunRadius = 0.05f; // Zmieniono z 0.1f na 0.05f
+
+
+	// Oblicz ÔøΩrodek grupy piramid, ÔøΩeby przesunÔøΩÔøΩ tam podÔøΩogÔøΩ
+	glm::vec3 pyramidCenter(0.0f);
+	if (numPyramids > 0) {
+		for (int i = 0; i < numPyramids; ++i) {
+			pyramidCenter += pyramidPositions[i];
+		}
+		pyramidCenter /= numPyramids;
+	}
+	glm::vec3 groundOffset = glm::vec3(pyramidCenter.x, 0.0f, pyramidCenter.z);
+
+
+	// === G≈Å√ìWNA PƒòTLA RENDEROWANIA ===
 	while (!glfwWindowShouldClose(window))
 	{
 		float currentTime = (float)glfwGetTime();
-		glClearColor(0.45f, 0.55f, 0.65f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClearColor(0.45f, 0.55f, 0.65f, 1.0f); // Kolor tÔøΩa
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Czy≈õci bufory
 
 		camera.Inputs(window);
 		camera.updateMatrix(45.0f, 0.1f, 100.0f);
 
-		glm::vec4 lightColor = glm::vec4(1.0f, 0.9f, 0.75f, 1.0f); //ciep≥e øÛ≥te úwiat≥o
-		glm::vec4 sunTintColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); //kolor modulujπcy teksturÍ s≥oÒca
+		glm::vec4 lightColor = glm::vec4(1.0f, 0.9f, 0.75f, 1.0f); //ciepÔøΩe ÔøΩÔøΩte ÔøΩwiatÔøΩo
+		glm::vec4 sunTintColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); //kolor modulujÔøΩcy teksturƒô sÔøΩoÔøΩca
 
-		//obliczanie pozycji s≥oÒca dla cyklu wschÛd-zachÛd
-	   //kπt zmienia siÍ od 0 do PI (wschÛd do zachodu) i potem resetuje lub idzie w drugπ stronÍ
-	   //dla uproszczenia, pÍtla 0 -> PI -> 0 (dzieÒ)
-		float angle = fmod(currentTime * dayNightCycleSpeed, (float)M_PI * 2.0f); //kπt od 0 do 2*PI
-
-		float lightX, lightY, lightZ;
-
-		//ruch po ≥uku od -sunPathRadius do +sunPathRadius na osi X
-		//wysokoúÊ (Y) zmienia siÍ sinusoidalnie
-		lightX = cos(angle) * sunPathRadius; //od sunPathRadius do -sunPathRadius i z powrotem
-		lightY = sin(angle) * (sunMaxHeight - sunMinHeight) * 0.5f + (sunMaxHeight + sunMinHeight) * 0.5f;
-		//Y >= sunMinHeight. sin(angle) da wartoúci od 0 (wschÛd/zachÛd) do 1 (zenit) dla angle w [0, PI]
-		//jeúli angle jest w [0, 2PI], to sin(angle) bÍdzie od -1 do 1
-		//dla prostego ≥uku gÛra-dÛ≥:
-		float normalizedTime = fmod(currentTime * dayNightCycleSpeed, 2.0f); //0 do 2.0 (0-1 wschÛd->zachÛd, 1-2 zachÛd->wschÛd)
+		//obliczanie pozycji sÔøΩoÔøΩca dla cyklu wschÔøΩd-zachÔøΩd
+		float normalizedTime = fmod(currentTime * dayNightCycleSpeed, 2.0f);
 		float pathParam;
-		if (normalizedTime < 1.0f) { //wschÛd -> zenit -> zachÛd
-			pathParam = normalizedTime; //0 -> 1
+		if (normalizedTime < 1.0f) {
+			pathParam = normalizedTime;
 		}
-		else { //zachÛd -> nadir -> wschÛd (pod horyzontem)
-			pathParam = 2.0f - normalizedTime; //1 -> 0 (symetrycznie)
+		else {
+			pathParam = 2.0f - normalizedTime;
 		}
 
-		//pozycja x od -sunPathRadius do +sunPathRadius
-		lightX = -sunPathRadius + (2.0f * sunPathRadius * pathParam);
-
-		//pozycja Y jako parabola lub sinusoida od 0 do PI
-		//kπt dla Y od 0 (wschÛd) do PI (zachÛd)
-		float angleY = pathParam * M_PI; //0 -> PI
-		lightY = sin(angleY) * (sunMaxHeight - sunMinHeight) + sunMinHeight;
-
-		lightZ = sunPathDepth; //sta≥a g≥ÍbokoúÊ Z
+		float lightX = -sunPathRadius + (2.0f * sunPathRadius * pathParam);
+		float angleY = pathParam * M_PI;
+		float lightY = sin(angleY) * (sunMaxHeight - sunMinHeight) + sunMinHeight;
+		float lightZ = sunPathDepth;
 
 		glm::vec3 lightPos = glm::vec3(lightX, lightY, lightZ);
 
-		//renderowanie piramidy
-		pyramidShaderProgram.Activate();
-		camera.Matrix(pyramidShaderProgram, "camMatrix"); //ustawienie macierzy kamery
+
+		// --- renderowanie podloza ---
+		pyramidShaderProgram.Activate(); // Uzywamy tego samego shadera dla podlogi, piramid i kaktus√≥w
+		camera.Matrix(pyramidShaderProgram, "camMatrix");
 		pyramidShaderProgram.setVec4("lightColor", lightColor);
 		pyramidShaderProgram.setVec3("lightPos", lightPos);
 		pyramidShaderProgram.setVec3("camPos", camera.Position);
 		pyramidShaderProgram.setInt("u_lightingMode", currentLightingMode);
 
-		glm::mat4 groundModel = glm::mat4(1.0f); //pod≥oøena y=0
+		// Macierz modelu dla pod≈Çogi - Przesuniƒôta o groundOffset
+		glm::mat4 groundModel = glm::mat4(1.0f);
+		groundModel = glm::translate(groundModel, groundOffset);
 		pyramidShaderProgram.setMat4("model", groundModel);
 
-		groundSandTexture.texUnit(pyramidShaderProgram, "tex0"); //shader uzywa tekstury piasku dla 'tex0'
-		groundSandTexture.Bind();
+		// Bindowanie tekstury pod≈Çogi (jednostka 2) i ustawienie uniformu "tex0" na jednostkƒô 2
+		groundSandTexture.texUnit(pyramidShaderProgram, "tex0"); // Ustawia sampler 'tex0' w shaderze na unit 2
+		groundSandTexture.Bind(); // Aktywuje jednostkƒô 2 i binduje teksturƒô
 
+		// Bindowanie VAO pod≈Çogi
 		groundVAO.Bind();
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0); //2 trÛjkπty = 6 indeksÛw
 
-		pyramidTexture.texUnit(pyramidShaderProgram, "tex0"); //przywrÛcenie tekstury piramidy dla tex0
-		pyramidTexture.Bind();		//bindowanie tekstury - uøycie zapisanej jednostki
+		// === Ustawienie NISKIEJ si≈Çy specularnej dla pod≈Çogi ===
+		// Wymaga uniformu u_specularStrength w default.frag
+		pyramidShaderProgram.setFloat("u_specularStrength", 0.05f); // Bardzo niska warto≈õƒá dla piasku
+		// ======================================================
+
+		// Rysowanie pod≈Çogi (u≈ºywamy rozmiaru wektora indeks√≥w)
+		glDrawElements(GL_TRIANGLES, groundIndicesVec.size(), GL_UNSIGNED_INT, 0);
+
+		// groundVAO.Unbind(); // Usuniƒôto Unbind
+
+
+		// --- renderowanie kaktus√≥w ---
+		// Aktywujemy ju≈º u≈ºywany shader, ale zmieniamy teksturƒô i VAO
+		// pyramidShaderProgram.Activate(); // Ju≈º aktywowany
+
+		// Po narysowaniu pod≈Çogi, prze≈ÇƒÖcz uniform "tex0" na jednostkƒô 3 dla kaktus√≥w
+		cactusTexture.texUnit(pyramidShaderProgram, "tex0"); // Ustawia sampler 'tex0' w shaderze na unit 3
+		cactusTexture.Bind(); // Bindowanie tekstury kaktusa (jednostka 3)
+
+		// === Bindowanie VAO sfery dla kaktus√≥w ===
+		cactusSphereVAO.Bind();
+
+		// === Ustawienie ≈öREDNIEJ si≈Çy specularnej dla kaktus√≥w ===
+		pyramidShaderProgram.setFloat("u_specularStrength", 0.2f); // Niska, ale nieco wy≈ºsza ni≈º dla piasku (np. li≈õcie)
+		// ======================================================
+
+		// Rysowanie ka≈ºdej instancji kaktusa
+		// std::vector<Cactus> cacti zadeklarowany i wype≈Çniony przed pÔøΩtlÔøΩ
+		// standardCactusPartsData zadeklarowany przed pÔøΩtlƒÖ
+		for (const auto& cactus : cacti) // Iteracja przez wektor instancji kaktus√≥w
+		{
+			// Metoda Draw klasy Cactus zajmie siƒô ustawieniem macierzy modelu
+			// dla ka≈ºdej czƒô≈õci i wywo≈Çaniem glDrawElements dla SFERY.
+			// Przekazujemy shader, liczbƒô indeks√≥w sfery i dane o czƒô≈õciach.
+			cactus.Draw(pyramidShaderProgram, sphereIndexCount, standardCactusPartsData);
+		}
+
+		// cactusSphereVAO.Unbind(); // Usuniƒôto Unbind
+
+
+		// --- renderowanie piramidy ---
+		// Po narysowaniu kaktus√≥w, przywracamy uniform "tex0" na jednostkƒô 0 dla piramid
+		pyramidTexture.texUnit(pyramidShaderProgram, "tex0"); // Ustawia sampler 'tex0' w shaderze z powrotem na unit 0
+		pyramidTexture.Bind(); // Bindowanie tekstury piramidy (jednostka 0)
+
+		// Bindowanie VAO piramidy
 		pyramidVAO.Bind();
+
+		// === Ustawienie WY≈ªSZEJ si≈Çy specularnej dla piramid ===
+		pyramidShaderProgram.setFloat("u_specularStrength", 0.7f); // Warto≈õƒá dla piramid (piaskowiec mo≈ºe siƒô lekko b≈Çyszczeƒá)
+		// =====================================================
 
 		for (int i = 0; i < numPyramids; ++i)
 		{
@@ -384,29 +613,57 @@ int main()
 			glDrawElements(GL_TRIANGLES, sizeof(pyramidIndices) / sizeof(GLuint), GL_UNSIGNED_INT, 0);
 		}
 
-		//renderowanie s≥oÒca (jako úwiecπcej sfery)
-		sunShaderProgram.Activate();
+		// --- renderowanie sÔøΩoÔøΩca (jako ÔøΩwiecÔøΩcej sfery) ---
+		// Po narysowaniu piramid, prze≈ÇƒÖczamy shader i VAO na s≈Ço≈Ñce
+		// pyramidVAO.Unbind(); // Usuniƒôto Unbind
+		// pyramidShaderProgram.Deactivate(); // Usuniƒôto Deactivate
+
+		sunShaderProgram.Activate(); // Teraz aktywujemy shader s≈Ço≈Ñca
+
 		camera.Matrix(sunShaderProgram, "camMatrix");
 		glm::mat4 sunModel = glm::mat4(1.0f);
-		sunModel = glm::translate(sunModel, lightPos); //przesuniÍcie slonca na pozycje swiatla
-		//nie potrzebne jest skalowanie, bo promieÒ jest juø w generateSphere
+		sunModel = glm::translate(sunModel, lightPos); //przesuniÔøΩcie slonca na pozycje swiatla
+        sunModel = glm::scale(sunModel, glm::vec3(sunRadius/baseSphereRadius)); // Skalujemy bazowƒÖ sferƒô do rozmiaru s≈Ço≈Ñca
 		sunShaderProgram.setMat4("model", sunModel);
-		sunShaderProgram.setVec4("sunColor", sunTintColor); //dla modulacji koloru tekstury s≥oÒca
-		//sunShaderProgram.setInt("sunTexture", 1); //juø ustawione przez sunTexture.texUnit
+		sunShaderProgram.setVec4("sunColor", sunTintColor);
 
 		sunTexture.Bind();
+		// === Bindowanie VAO sfery dla s≈Ço≈Ñca ===
 		sunVAO.Bind();
-		glDrawElements(GL_TRIANGLES, sphereIndices.size(), GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0);
+
+		// sunVAO.Unbind(); // Usuniƒôto Unbind
+		// sunShaderProgram.Deactivate(); // Usuniƒôto Deactivate - shaddery pozostajƒÖ aktywne do ko≈Ñca ramki
+
+		// Na ko≈Ñcu pƒôtli renderowania, opcjonalnie mo≈ºemy unbindowaƒá ostatnio u≈ºywane VAO i shader,
+		// choƒá nie jest to konieczne, bo bƒôdƒÖ zbindowane na nowo w nastƒôpnej ramce.
+		// glUseProgram(0);
+		// glBindVertexArray(0);
+
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
+	// === CZYSZCZENIE ZASOB√ìW ===
 	pyramidVAO.Delete(); pyramidVBO.Delete(); pyramidEBO.Delete();
 	groundVAO.Delete(); groundVBO.Delete(); groundEBO.Delete();
-	sunVAO.Delete(); sunVBO.Delete(); sunEBO.Delete();
-	pyramidTexture.Delete(); sunTexture.Delete();
-	pyramidShaderProgram.Delete(); sunShaderProgram.Delete();
+
+	// === Czyszczenie zasob√≥w sfery (VBO i EBO sƒÖ wsp√≥≈Çdzielone!) ===
+	cactusSphereVAO.Delete(); // Usuwamy VAO dla kaktus√≥w
+	sunVAO.Delete();          // Usuwamy VAO dla s≈Ço≈Ñca
+    sphereVBO.Delete(); // Usuwamy VBO danych sfery (by≈Ço jedno VBO u≈ºywane przez dwa VAO)
+    sphereEBO.Delete(); // Usuwamy EBO indeks√≥w sfery (by≈Ço jedno EBO u≈ºywane przez dwa VAO)
+
+
+	pyramidTexture.Delete();
+	sunTexture.Delete();
+	groundSandTexture.Delete();
+	cactusTexture.Delete(); // Usuniƒôcie tekstury kaktusa
+
+	pyramidShaderProgram.Delete();
+	sunShaderProgram.Delete();
+
 
 	glfwDestroyWindow(window);
 	glfwTerminate();
