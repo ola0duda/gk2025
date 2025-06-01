@@ -2,7 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <vector>
-#include <string> // Potrzebne dla std::string i std::vector<std::string>
+#include <string> 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -21,11 +21,9 @@
 #include "Camera.h"
 #include "Texture.h"
 #include "Cactus.h"
-#include "Skybox.h" // NOWY INCLUDE
+#include "Skybox.h" 
 
-// --- Definicje geometrii i funkcji pomocniczych ze starego kodu (generateSphere, getHeight, etc.) ---
-// (Cały kod funkcji generateSphere, getHeight, calculateNormal, generateWavyGround pozostaje bez zmian)
-// Format wierzchołka sfery: Pos(3) + Normal(3) + TexCoord(2) = 8 floats
+
 void generateSphere(float radius, int sectorCount, int stackCount,
     std::vector<GLfloat>& outSphereVertices, std::vector<GLuint>& outSphereIndices)
 {
@@ -73,8 +71,8 @@ void generateSphere(float radius, int sectorCount, int stackCount,
     int k1, k2;
     for (int i = 0; i < stackCount; ++i)
     {
-        k1 = i * (sectorCount + 1);     //beginning of current stack
-        k2 = k1 + sectorCount + 1;      //beginning of next stack
+        k1 = i * (sectorCount + 1);     
+        k2 = k1 + sectorCount + 1;      
 
         for (int j = 0; j < sectorCount; ++j, ++k1, ++k2)
         {
@@ -172,7 +170,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
-GLfloat pyramidVertices[] = { /* ... dane wierzchołków piramidy ze starego kodu (11 floatów) ... */
+GLfloat pyramidVertices[] = { 
     -0.5f, 0.0f,  0.5f,    0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, -1.0f, 0.0f,
     -0.5f, 0.0f, -0.5f,    0.83f, 0.70f, 0.44f,  0.0f, 5.0f,   0.0f, -1.0f, 0.0f,
      0.5f, 0.0f, -0.5f,    0.83f, 0.70f, 0.44f,  5.0f, 5.0f,   0.0f, -1.0f, 0.0f,
@@ -190,7 +188,7 @@ GLfloat pyramidVertices[] = { /* ... dane wierzchołków piramidy ze starego kod
     -0.5f, 0.0f,  0.5f,    0.83f, 0.70f, 0.44f,  0.0f, 0.0f,   0.0f, 0.5f, 0.8f,
      0.0f, 0.8f,  0.0f,    0.92f, 0.86f, 0.76f,  2.5f, 5.0f,   0.0f, 0.5f, 0.8f
 };
-GLuint pyramidIndices[] = { /* ... dane indeksów piramidy ze starego kodu ... */
+GLuint pyramidIndices[] = { 
     0, 1, 2, 0, 2, 3,
     4, 6, 5,
     7, 9, 8,
@@ -228,18 +226,18 @@ int main() {
     std::uniform_real_distribution<float> dist(0.0f, 360.0f);
 
     Camera camera(SCR_WIDTH, SCR_HEIGHT, glm::vec3(0.0f, 2.0f, 10.0f));
-    Shader pyramidShaderProgram("default.vert", "default.frag"); // Załóżmy, że te shadery są zgodne ze starym formatem wierzchołków (11 floatów)
-    Shader sunShaderProgram("sun.vert", "sun.frag");         // I ten też
+    Shader pyramidShaderProgram("default.vert", "default.frag"); 
+    Shader sunShaderProgram("sun.vert", "sun.frag");        
 
-    // Sprawdzenie shaderów (opcjonalne, ale dobre)
+    
     if (pyramidShaderProgram.ID == 0) { std::cerr << "Shader 'default' nie załadowany." << std::endl; return -1; }
     if (sunShaderProgram.ID == 0) { std::cerr << "Shader 'sun' nie załadowany." << std::endl; return -1; }
 
-    // NOWOŚĆ: Inicjalizacja Skyboxa
-    Skybox skybox("skybox.vert", "skybox.frag"); // Użyj ścieżek do Twoich shaderów skyboxa
+    
+    Skybox skybox("skybox.vert", "skybox.frag"); 
     if (!skybox.loadCubemap(skyboxFaces)) {
         std::cerr << "Nie udało się załadować tekstur skyboxa." << std::endl;
-        // Można dodać zwolnienie innych zasobów przed wyjściem
+        
         return -1;
     }
 
@@ -247,7 +245,7 @@ int main() {
     Texture sunTexture("sun_texture.png", GL_TEXTURE_2D, 1, GL_RGBA, GL_UNSIGNED_BYTE);
     Texture groundSandTexture("groundSand_texture.png", GL_TEXTURE_2D, 2, GL_RGBA, GL_UNSIGNED_BYTE);
     Texture cactusTexture("cactus_texture.jpg", GL_TEXTURE_2D, 3, GL_RGBA, GL_UNSIGNED_BYTE);
-    // Sprawdzenia poprawności ładowania tekstur... (jak w starym kodzie)
+    
 
 
     std::vector<GLfloat> groundVerticesVec;
@@ -292,7 +290,7 @@ int main() {
     sunVAO.LinkAttrib(sphereVBO, 1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float)));
     sunVAO.LinkAttrib(sphereVBO, 2, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float)));
 
-    // Pozycje, skale, rotacje piramid (ze starego kodu)
+    // Pozycje, skale, rotacje piramid 
     glm::vec3 pyramidPositions[] = { /* ... */ glm::vec3(0.9f, 0.0f, -0.3f), glm::vec3(-0.7f, 0.0f, 0.0f), glm::vec3(0.2f, 0.0f, -1.5f), glm::vec3(-1.5f, 0.0f, -1.0f) };
     float pyramidScales[] = { /* ... */ 1.1f, 1.0f, 0.85f, 0.7f };
     float pyramidYRotations[] = { /* ... */ -20.0f, 25.0f, 5.0f, 45.0f };
@@ -323,17 +321,13 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         camera.Inputs(window);
-        // Stara kamera używała updateMatrix, ale my potrzebujemy osobnych macierzy dla skyboxa
-        // i potencjalnie dla nowej logiki przekazywania macierzy do starych shaderów.
-        // camera.updateMatrix(45.0f, 0.1f, 100.0f); // To mogło ustawiać wewnętrzne macierze kamery
-
-        // NOWOŚĆ: Jawne obliczanie macierzy widoku i projekcji
+       
         float FOV = 45.0f;
         float nearPlane = 0.1f;
-        float farPlane = 100.0f; // Upewnij się, że skybox i obiekty mieszczą się w tym zakresie
+        float farPlane = 100.0f; 
         glm::mat4 currentViewMatrix = glm::lookAt(camera.Position, camera.Position + camera.Orientation, camera.Up);
         glm::mat4 currentProjectionMatrix = glm::perspective(glm::radians(FOV), (float)SCR_WIDTH / (float)SCR_HEIGHT, nearPlane, farPlane);
-        glm::mat4 combinedCamMatrix = currentProjectionMatrix * currentViewMatrix; // Dla starych shaderów
+        glm::mat4 combinedCamMatrix = currentProjectionMatrix * currentViewMatrix; 
 
         glm::vec4 lightColor = glm::vec4(1.0f, 0.9f, 0.75f, 1.0f);
         glm::vec4 sunTintColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -345,9 +339,8 @@ int main() {
         float lightZ = sunPathDepth;
         glm::vec3 lightPos = glm::vec3(lightX, lightY, lightZ);
 
-        // --- Renderowanie podłoża (jak w starym kodzie, ale z nową macierzą) ---
         pyramidShaderProgram.Activate();
-        // camera.Matrix(pyramidShaderProgram, "camMatrix"); // Zamiast tego:
+        // camera.Matrix(pyramidShaderProgram, "camMatrix"); 
         pyramidShaderProgram.setMat4("camMatrix", combinedCamMatrix);
         pyramidShaderProgram.setVec4("lightColor", lightColor);
         pyramidShaderProgram.setVec3("lightPos", lightPos);
@@ -361,22 +354,21 @@ int main() {
         pyramidShaderProgram.setFloat("u_specularStrength", 0.05f);
         glDrawElements(GL_TRIANGLES, groundIndicesVec.size(), GL_UNSIGNED_INT, 0);
 
-        // --- Renderowanie kaktusów (jak w starym kodzie, z nową macierzą) ---
         cactusTexture.texUnit(pyramidShaderProgram, "tex0");
         cactusTexture.Bind();
         cactusSphereVAO.Bind();
         pyramidShaderProgram.setFloat("u_specularStrength", 0.2f);
-        for (const auto& cactus_instance : cacti) { // Zmieniono nazwę zmiennej iteracyjnej
+        for (const auto& cactus_instance : cacti) { 
             cactus_instance.Draw(pyramidShaderProgram, sphereIndexCount, standardCactusPartsData);
         }
 
-        // --- Renderowanie piramid (jak w starym kodzie, z nową macierzą) ---
+        
         pyramidTexture.texUnit(pyramidShaderProgram, "tex0");
         pyramidTexture.Bind();
         pyramidVAO.Bind();
         pyramidShaderProgram.setFloat("u_specularStrength", 0.7f);
         for (int i = 0; i < numPyramids; ++i) {
-            glm::mat4 pyramidModel_instance = glm::mat4(1.0f); // Zmieniono nazwę zmiennej
+            glm::mat4 pyramidModel_instance = glm::mat4(1.0f); 
             pyramidModel_instance = glm::translate(pyramidModel_instance, pyramidPositions[i]);
             pyramidModel_instance = glm::rotate(pyramidModel_instance, glm::radians(pyramidYRotations[i]), glm::vec3(0.0f, 1.0f, 0.0f));
             pyramidModel_instance = glm::scale(pyramidModel_instance, glm::vec3(pyramidScales[i]));
@@ -384,39 +376,34 @@ int main() {
             glDrawElements(GL_TRIANGLES, sizeof(pyramidIndices) / sizeof(GLuint), GL_UNSIGNED_INT, 0);
         }
 
-        // --- Renderowanie słońca (jak w starym kodzie, z nową macierzą) ---
+        
         sunShaderProgram.Activate();
-        // camera.Matrix(sunShaderProgram, "camMatrix"); // Zamiast tego:
+        
         sunShaderProgram.setMat4("camMatrix", combinedCamMatrix);
-        glm::mat4 sunModel_instance = glm::mat4(1.0f); // Zmieniono nazwę zmiennej
+        glm::mat4 sunModel_instance = glm::mat4(1.0f); 
         sunModel_instance = glm::translate(sunModel_instance, lightPos);
         sunModel_instance = glm::scale(sunModel_instance, glm::vec3(sunRadius / baseSphereRadius));
         sunShaderProgram.setMat4("model", sunModel_instance);
-        sunShaderProgram.setVec4("sunColor", sunTintColor); // Upewnij się, że sun.frag używa tego uniformu
-        sunTexture.Bind(); // Upewnij się, że sun.frag używa odpowiedniej jednostki teksturującej dla sunTexture
+        sunShaderProgram.setVec4("sunColor", sunTintColor); 
+        sunTexture.Bind(); 
         sunVAO.Bind();
         glDrawElements(GL_TRIANGLES, sphereIndexCount, GL_UNSIGNED_INT, 0);
-
-        // --- NOWOŚĆ: Renderowanie Skyboxa ---
-        glDepthFunc(GL_LEQUAL); // Zmień funkcję głębokości
-        // Klasa Skybox powinna sama zarządzać aktywacją swojego shadera i ustawianiem uniformów.
-        // Twój skybox.vert sam obsługuje usunięcie translacji z macierzy widoku.
+        glDepthFunc(GL_LEQUAL); 
         skybox.Draw(currentViewMatrix, currentProjectionMatrix);
-        glDepthFunc(GL_LESS); // Przywróć domyślną funkcję głębokości
+        glDepthFunc(GL_LESS); //  domyślna funkcję głębokości
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // Czyszczenie zasobów (jak w starym kodzie)
+    
     pyramidVAO.Delete(); pyramidVBO.Delete(); pyramidEBO.Delete();
     groundVAO.Delete(); groundVBO.Delete(); groundEBO.Delete();
     cactusSphereVAO.Delete(); sunVAO.Delete();
     sphereVBO.Delete(); sphereEBO.Delete(); // Współdzielone VBO/EBO usuwane raz
     pyramidTexture.Delete(); sunTexture.Delete(); groundSandTexture.Delete(); cactusTexture.Delete();
     pyramidShaderProgram.Delete(); sunShaderProgram.Delete();
-    // Skybox powinien być zarządzany przez swój destruktor lub mieć metodę Delete, jeśli to konieczne.
-    // Jeśli Skybox przechowuje shadery/tekstury jako obiekty, powinny być one zwolnione.
+    
 
     glfwDestroyWindow(window);
     glfwTerminate();
